@@ -1,129 +1,131 @@
 // Write your code here
 import {Component} from 'react'
 import Loader from 'react-loader-spinner'
+
 import VaccinationCoverage from '../VaccinationCoverage'
 import VaccinationByGender from '../VaccinationByGender'
 import VaccinationByAge from '../VaccinationByAge'
+
 import './index.css'
 
-class CowinDashboard extends Component {
-  state = {vaccinationList: {}, isLoading: true}
+const apiStatusConstants = {
+  initial: 'INITIAL',
+  success: 'SUCCESS',
+  failure: 'FAILURE',
+  inProgress: 'IN_PROGRESS',
+}
 
-  componentDidMount() {
-    this.getResponseData()
+class CowinDashboard extends Component {
+  state = {
+    apiStatus: apiStatusConstants.initial,
+    vaccinationData: {},
   }
 
-  getFetchedData = fetchedData => ({
-    vaccineDate: fetchedData.vaccine_date,
-    dose1: fetchedData.dose_1,
-    dose2: fetchedData.dose_2,
-  })
+  componentDidMount() {
+    this.getVaccinationData()
+  }
 
-  getFailure = () => (
-    <div>
-      <img
-        src="https://assets.ccbp.in/frontend/react-js/api-failure-view.png"
-        alt="failure view"
-        className="image"
-      />
-      <p>Something Went Wrong</p>
-    </div>
-  )
+  getVaccinationData = async () => {
+    this.setState({
+      apiStatus: apiStatusConstants.inProgress,
+    })
 
-  getResponseData = async () => {
     const response = await fetch('https://apis.ccbp.in/covid-vaccination-data')
-    const data = await response.json()
-    console.log(data)
     if (response.ok === true) {
-      const fetchedData = {
-        dateWiseVaccine: data.last_7_days_vaccination.map(eachItem =>
-          this.getFetchedData(eachItem),
+      const fetchedData = await response.json()
+      const updatedData = {
+        last7DaysVaccination: fetchedData.last_7_days_vaccination.map(
+          eachDayData => ({
+            vaccineDate: eachDayData.vaccine_date,
+            dose1: eachDayData.dose_1,
+            dose2: eachDayData.dose_2,
+          }),
         ),
-        vaccineByAge: data.vaccination_by_age,
-        vaccineByGender: data.vaccination_by_gender,
+        vaccinationByAge: fetchedData.vaccination_by_age.map(range => ({
+          age: range.age,
+          count: range.count,
+        })),
+        vaccinationByGender: fetchedData.vaccination_by_gender.map(
+          genderType => ({
+            gender: genderType.gender,
+            count: genderType.count,
+          }),
+        ),
       }
-      console.log(fetchedData.dateWiseVaccine)
-      this.setState({vaccinationList: fetchedData, isLoading: false})
+      this.setState({
+        vaccinationData: updatedData,
+        apiStatus: apiStatusConstants.success,
+      })
     } else {
-      this.getFailure()
+      this.setState({apiStatus: apiStatusConstants.failure})
     }
   }
 
-  renderVaccinationDetails = () => {
-    const {vaccinationList} = this.state
-    const {dateWiseVaccine} = vaccinationList
-    return (
-      <div>
-        <h1>Vaccination Coverage</h1>
-        {dateWiseVaccine.map(date => (
-          <VaccinationCoverage dataList={date} />
-        ))}
-      </div>
-    )
-  }
-
-  renderAgeWiseVaccine = () => {
-    const {vaccinationList} = this.state
-    const {vaccineByAge} = vaccinationList
-    return (
-      <div>
-        <h1>Vaccination by Age</h1>
-        {vaccineByAge.map(eachAge => (
-          <VaccinationByAge listData={eachAge} />
-        ))}
-      </div>
-    )
-  }
-
-  renderGenderWiseVaccine = () => {
-    const {vaccinationList} = this.state
-    const {vaccineByGender} = vaccinationList
-    return (
-      <div>
-        <h1>Vaccination by Gender</h1>
-        {vaccineByGender.map(gender => (
-          <VaccinationByGender listData={gender} />
-        ))}
-      </div>
-    )
-  }
-
-  renderSuccessView = () => (
-    <>
-      {this.renderVaccinationDetails()}
-      {this.renderAgeWiseVaccine()}
-      {this.renderGenderWiseVaccine()}
-    </>
+  renderFailureView = () => (
+    <div className="failure-view">
+      <img
+        className="failure-image"
+        src="https://assets.ccbp.in/frontend/react-js/api-failure-view.png"
+        alt="failure view"
+      />
+      <h1 className="failure-text">Something went wrong</h1>
+    </div>
   )
 
-  renderDivElements = () => {
-    const {isLoading} = this.state
+  renderVaccinationStats = () => {
+    const {vaccinationData} = this.state
+
     return (
-      <div>
-        {isLoading ? (
-          <div testid="loader">
-            <Loader type="ThreeDots" color="#ffffff" height={80} width={80} />
-          </div>
-        ) : (
-          this.renderSuccessView()
-        )}
-      </div>
+      <>
+        <VaccinationCoverage
+          vaccinationCoverageDetails={vaccinationData.last7DaysVaccination}
+        />
+        <VaccinationByGender
+          vaccinationByGenderDetails={vaccinationData.vaccinationByGender}
+        />
+        <VaccinationByAge
+          vaccinationByAgeDetails={vaccinationData.vaccinationByAge}
+        />
+      </>
     )
+  }
+
+  renderLoadingView = () => (
+    <div className="loading-view" testid="loader">
+      <Loader color="#ffffff" height={80} type="ThreeDots" width={80} />
+    </div>
+  )
+
+  renderViewsBasedOnAPIStatus = () => {
+    const {apiStatus} = this.state
+
+    switch (apiStatus) {
+      case apiStatusConstants.success:
+        return this.renderVaccinationStats()
+      case apiStatusConstants.failure:
+        return this.renderFailureView()
+      case apiStatusConstants.inProgress:
+        return this.renderLoadingView()
+      default:
+        return null
+    }
   }
 
   render() {
     return (
-      <div>
-        <div>
-          <img
-            src="https://assets.ccbp.in/frontend/react-js/cowin-logo.png"
-            alt="website logo"
-            className="icon"
-          />
-          <h1>Co-win</h1>
+      <div className="app-container">
+        <div className="cowin-dashboard-container">
+          <div className="logo-container">
+            <img
+              className="logo"
+              src="https://assets.ccbp.in/frontend/react-js/cowin-logo.png"
+              alt="website logo"
+            />
+            <h1 className="logo-heading">Co-WIN</h1>
+          </div>
+          <h1 className="heading">CoWIN Vaccination in India</h1>
+          {this.renderViewsBasedOnAPIStatus()}
         </div>
-        <h1>CoWin Vaccination In India</h1>
-        <div>{this.renderDivElements()}</div>
       </div>
     )
   }
